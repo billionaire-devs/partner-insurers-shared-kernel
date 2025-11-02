@@ -1,0 +1,14 @@
+# Project information
+group=com.bamboo.assur
+version=1.0.0
+description=Shared kernel library for Bamboo Assur Partner Insurers microservices
+
+# GitHub repository information
+repository.owner=billionaire-devs
+repository.name=partner-insurers-shared-kernel
+
+# GitHub Packages credentials (optional for local development)
+# These are automatically provided by GitHub Actions via GITHUB_ACTOR and GITHUB_TOKEN
+# For local publishing, uncomment and fill in:
+# gpr.user=your-github-username
+# gpr.token=your-github-personal-access-token

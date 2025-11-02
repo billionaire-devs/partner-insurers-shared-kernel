@@ -5,12 +5,12 @@ tasks.register("publishToMavenLocal") {
     }
 }
 
-//tasks.register("publishToGitHubPackages") {
-//    dependsOn("publish")
-//    doLast {
-//        println("✓ Published to GitHub Packages")
-//    }
-//}
+tasks.register("publishToGitHubPackages") {
+    dependsOn("publish")
+    doLast {
+        println("✓ Published to GitHub Packages")
+    }
+}
 
 tasks.register("buildAndPublish") {
     dependsOn("clean", "build", "publishToMavenLocal")
