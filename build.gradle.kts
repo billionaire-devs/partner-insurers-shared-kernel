@@ -1,3 +1,5 @@
+import org.gradle.kotlin.dsl.invoke
+
 plugins {
     kotlin("jvm") version "2.2.20"
     kotlin("plugin.spring") version "2.2.20"
@@ -6,9 +8,9 @@ plugins {
     signing
 }
 
-group = findProperty("group") as String
-version = findProperty("version") as String
-description = findProperty("description") as String
+group = "com.bamboo.assur.partner-insurers"
+version = "0.1.0"
+description = "Infrastructure DDD partagée pour les microservices des assureurs partenaires dans le cadre du projet Bamboo Assur "
 
 java {
     sourceCompatibility = JavaVersion.VERSION_21
@@ -23,19 +25,6 @@ java {
 repositories {
     mavenCentral()
     mavenLocal()
-
-    maven {
-        name = "GitHubPackages"
-        url = uri(
-            "https://maven.pkg.github.com/" +
-                    "${project.findProperty("repository.owner")}/" +
-                    "${project.findProperty("repository.name")}"
-        )
-        credentials {
-            username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user") as String?
-            password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.token") as String?
-        }
-    }
 }
 
 publishing {
@@ -47,11 +36,7 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri(
-                "https://maven.pkg.github.com/" +
-                        "${project.findProperty("repository.owner")}/" +
-                        "${project.findProperty("repository.name")}"
-            )
+            url = uri("https://maven.pkg.github.com/${System.getenv("GITHUB_REPOSITORY")}")
             credentials {
                 username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user") as String?
                 password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.token") as String?
@@ -61,6 +46,7 @@ publishing {
 }
 
 dependencies {
+    compileOnly("org.springframework.boot:spring-boot-starter:4.0.0-RC1")
     compileOnly("org.springframework.boot:spring-boot-starter-webflux:4.0.0-RC1")
     compileOnly("org.springframework.boot:spring-boot-starter-webmvc:4.0.0-RC1")
     compileOnly("org.springframework.boot:spring-boot-starter-data-r2dbc:4.0.0-RC1")

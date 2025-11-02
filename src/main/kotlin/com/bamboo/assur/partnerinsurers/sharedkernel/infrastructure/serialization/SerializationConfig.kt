@@ -3,6 +3,7 @@ package com.bamboo.assur.partnerinsurers.sharedkernel.infrastructure.serializati
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
 import kotlinx.serialization.modules.contextual
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
 import kotlin.time.ExperimentalTime
@@ -16,6 +17,7 @@ class SerializationConfig {
      * Used by all features that need JSON serialization.
      */
     @Bean
+    @ConditionalOnMissingBean
     fun kotlinxJson(): Json = Json {
         ignoreUnknownKeys = true
         encodeDefaults = true
