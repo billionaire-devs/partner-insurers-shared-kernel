@@ -10,7 +10,7 @@ import kotlinx.serialization.encoding.Encoder
 import kotlin.uuid.ExperimentalUuidApi
 
 /**
- * Serializer for DomainEntityId value class.
+ * Serializer for the `Url` value class, storing values as plain strings.
  */
 @OptIn(ExperimentalUuidApi::class)
 object UrlSerializer : KSerializer<Url> {
