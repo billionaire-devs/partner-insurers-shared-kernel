@@ -34,7 +34,6 @@
       {
         "assets": ["build/libs/*.jar"]
       }
-    ],
-    "gradle-semantic-release-plugin"
+    ]
   ]
 }
