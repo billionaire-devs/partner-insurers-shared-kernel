@@ -14,6 +14,8 @@ description = """
     Infrastructure DDD partagée pour les microservices des assureurs partenaires dans le cadre du projet Bamboo Assur
     """.trimIndent()
 
+apply(from = "publish.gradle.kts")
+
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
