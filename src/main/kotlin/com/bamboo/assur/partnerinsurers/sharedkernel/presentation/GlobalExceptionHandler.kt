@@ -179,13 +179,14 @@ class GlobalExceptionHandler {
     }
 
     @ExceptionHandler(EntityAlreadyExistsException::class)
-    fun handleAlreadyExists(
-        ex: EntityAlreadyExistsException, 
+    fun handleEntityAlreadyExistsException(
+        ex: EntityAlreadyExistsException,
         request: HttpServletRequest
     ): ResponseEntity<ApiResponse<Any>> {
         logger.error("Entity already exists: ${ex.message}", ex)
         val details = mapOf(
             "errorType" to ex.javaClass.simpleName,
+            "message" to (ex.message ?: "A resource with the same identifier already exists"),
             "suggestion" to "Try updating the existing resource or use a different identifier"
         )
         val response = buildApiResponse(
@@ -234,6 +235,26 @@ class GlobalExceptionHandler {
     fun handleDomain(ex: DomainException, request: HttpServletRequest): ResponseEntity<ApiResponse<Any>> {
         val body = buildApiResponse(HttpStatus.BAD_REQUEST, ex.message, request)
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body)
+    }
+
+    @ExceptionHandler(IllegalStateException::class)
+    fun handleIllegalStateException(
+        ex: IllegalStateException,
+        request: HttpServletRequest
+    ): ResponseEntity<ApiResponse<Any>> {
+        logger.error("Illegal state encountered: ${ex.message}", ex)
+        val details = mapOf(
+            "errorType" to ex.javaClass.simpleName,
+            "message" to (ex.message ?: "No error message available"),
+            "suggestion" to "Retry the request or contact support if the issue persists"
+        )
+        val response = buildApiResponse(
+            status = HttpStatus.INTERNAL_SERVER_ERROR,
+            message = ex.message ?: "The system is in an unexpected state",
+            request = request,
+            details = details
+        )
+        return ResponseEntity(response, HttpStatus.INTERNAL_SERVER_ERROR)
     }
 
     @ExceptionHandler(Throwable::class)
