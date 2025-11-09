@@ -1,0 +1,75 @@
+name: Publish Release Artifacts
+
+on:
+  workflow_run:
+    workflows:
+      - Release
+    types:
+      - completed
+
+jobs:
+  publish:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Download release metadata
+        uses: actions/download-artifact@v4
+        with:
+          name: release-metadata
+          run-id: ${{ github.event.workflow_run.id }}
+          path: release-metadata
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Parse release metadata
+        id: metadata
+        shell: bash
+        run: |
+          env_file="release-metadata/release-metadata.env"
+          if [ ! -f "$env_file" ]; then
+            echo "published=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          set -a
+          source "$env_file"
+          set +a
+          echo "published=${published:-false}" >> "$GITHUB_OUTPUT"
+          echo "version=${version:-}" >> "$GITHUB_OUTPUT"
+          echo "tag=${tag:-}" >> "$GITHUB_OUTPUT"
+
+      - name: Abort when no new release
+        if: ${{ steps.metadata.outputs.published != 'true' }}
+        run: echo "No new release published by semantic-release; skipping publish workflow."
+
+      - name: Checkout release commit
+        if: ${{ steps.metadata.outputs.published == 'true' }}
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Export release version
+        if: ${{ steps.metadata.outputs.published == 'true' }}
+        run: echo "RELEASE_VERSION=${{ steps.metadata.outputs.version }}" >> "$GITHUB_ENV"
+
+      - name: Set up JDK 21
+        if: ${{ steps.metadata.outputs.published == 'true' }}
+        uses: actions/setup-java@v5
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      - name: Grant execute permission for gradlew
+        if: ${{ steps.metadata.outputs.published == 'true' }}
+        run: chmod +x gradlew
+
+      - name: Publish to GitHub Packages
+        if: ${{ steps.metadata.outputs.published == 'true' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+          RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
+        run: ./gradlew -Pversion="${RELEASE_VERSION}" publish

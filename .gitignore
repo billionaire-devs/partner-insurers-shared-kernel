@@ -39,6 +39,9 @@ out/
 ### Kotlin ###
 .kotlin
 
+### Gradle ###
+gradle.local.properties
+
 ### NodeJS ###
 npm-debug.log
 yarn-error.log
