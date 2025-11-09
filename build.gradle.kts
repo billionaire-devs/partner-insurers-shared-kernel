@@ -50,6 +50,9 @@ publishing {
 dependencies {
     val springBootVersion = "4.0.0-RC1"
 
+    implementation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+    testImplementation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
+
     compileOnly("org.springframework.boot:spring-boot-starter:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-webflux:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
@@ -61,6 +64,8 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-reactor:1.8.1")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test:$springBootVersion")
+    testImplementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
+    testImplementation("org.springframework.data:spring-data-commons")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
