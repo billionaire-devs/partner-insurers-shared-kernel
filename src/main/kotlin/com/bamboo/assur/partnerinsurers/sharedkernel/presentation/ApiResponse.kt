@@ -2,7 +2,9 @@ package com.bamboo.assur.partnerinsurers.sharedkernel.presentation
 
 import kotlinx.serialization.Contextual
 import kotlinx.serialization.Serializable
-import java.time.OffsetDateTime
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
 /**
  * Captures HTTP request metadata to include in envelope responses.
@@ -19,7 +21,11 @@ data class RequestMetadata(
 
 /**
  * Captures HTTP response metadata to include in envelope responses.
+ *
+ * Prefer passing an explicit `timestamp` in tests or batch jobs when deterministic
+ * values are required; otherwise the property defaults to the current time.
  */
+@OptIn(ExperimentalTime::class)
 @Serializable
 data class ResponseMetadata(
     /** Numeric status code returned by the controller. */
@@ -28,7 +34,7 @@ data class ResponseMetadata(
     val reason: String,
     /** Timestamp of the response creation. */
     @Contextual
-    val timestamp: OffsetDateTime = OffsetDateTime.now()
+    val timestamp: Instant = Clock.System.now()
 )
 
 /**
@@ -53,6 +59,9 @@ data class ErrorBody(
 
 /**
  * Standardized JSON envelope returned by REST controllers.
+ *
+ * Treat this structure as part of the public API contract exposed to consumers.
+ * Favour additive, backwards-compatible changes and document any breaking updates.
  */
 @Serializable
 data class ApiResponse<T>(

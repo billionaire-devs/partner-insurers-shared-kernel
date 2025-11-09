@@ -7,5 +7,5 @@ import org.springframework.boot.runApplication
 class SharedKernelApplication
 
 fun main(args: Array<String>) {
-	runApplication<SharedKernelApplication>(*args)
+    runApplication<SharedKernelApplication>(*args)
 }

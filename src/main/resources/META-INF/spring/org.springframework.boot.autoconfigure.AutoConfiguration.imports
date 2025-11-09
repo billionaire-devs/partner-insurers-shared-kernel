@@ -1,1 +1,2 @@
 com.bamboo.assur.partnerinsurers.sharedkernel.infrastructure.serialization.SerializationConfig
+com.bamboo.assur.partnerinsurers.sharedkernel.presentation.ApiResponseBodyAdvice

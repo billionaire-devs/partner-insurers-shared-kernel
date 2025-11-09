@@ -16,16 +16,21 @@ import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
-import java.time.OffsetDateTime
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
 
-// TODO: Refactor to have more specific exception handlers
-@Suppress("TooManyFunctions", "ForbiddenComment")
+/**
+ * Consolidated exception handling for REST controllers, mapping common failures to
+ * the shared `ApiResponse` envelope while logging actionable details.
+ */
+@OptIn(ExperimentalTime::class)
+@Suppress("TooManyFunctions")
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
     private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
-    // HTML-escape user-supplied strings to avoid XSS when reflecting them in responses
+    /** HTML-escapes user-supplied strings to avoid reflected XSS when echoing input. */
     private fun escapeHtml(input: String?): String? = input
         ?.replace("&", "&amp;")
         ?.replace("<", "&lt;")
@@ -33,6 +38,7 @@ class GlobalExceptionHandler {
         ?.replace("\"", "&quot;")
         ?.replace("'", "&#x27;")
 
+    /** Builds a standardized `ApiResponse` error payload with metadata. */
     private fun buildApiResponse(
         status: HttpStatus,
         message: String?,
@@ -48,7 +54,7 @@ class GlobalExceptionHandler {
         val respMeta = ResponseMetadata(
             status = status.value(),
             reason = status.reasonPhrase,
-            timestamp = OffsetDateTime.now()
+            timestamp = Clock.System.now()
         )
 
         val errorBody = ErrorBody(
@@ -239,7 +245,7 @@ class GlobalExceptionHandler {
             "errorType" to ex.javaClass.simpleName,
             "message" to (ex.message ?: "No error message available"),
             "path" to safePath,
-            "timestamp" to OffsetDateTime.now().toString(),
+            "timestamp" to Clock.System.now().toString(),
             "suggestion" to "Please contact support if the problem persists"
         )
         
