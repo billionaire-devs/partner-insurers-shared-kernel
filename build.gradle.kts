@@ -48,7 +48,7 @@ publishing {
 }
 
 dependencies {
-    val springBootVersion = "4.0.0-RC1"
+    val springBootVersion = "4.0.0-RC2"
 
     implementation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
     testImplementation(platform("org.springframework.boot:spring-boot-dependencies:$springBootVersion"))
