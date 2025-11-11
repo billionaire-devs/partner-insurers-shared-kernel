@@ -1,3 +1,9 @@
+## [1.1.0](https://github.com/billionaire-devs/partner-insurers-shared-kernel/compare/v1.0.0...v1.1.0) (2025-11-11)
+
+### Features
+
+* add query view enum for level of details ([1e1059a](https://github.com/billionaire-devs/partner-insurers-shared-kernel/commit/1e1059afaccdab7d79984dec456c8215ed869f6c))
+
 ## 1.0.0 (2025-11-09)
 
 ### Features
