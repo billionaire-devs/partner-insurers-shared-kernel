@@ -60,7 +60,8 @@ jobs:
         id: semantic
         uses: cycjimmy/semantic-release-action@v5
         env:
-          GITHUB_TOKEN: ${{ secrets.PACKAGES_TOKEN }}
+          GH_TOKEN: ${{ secrets.GH_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
       - name: Write release metadata
         env:
