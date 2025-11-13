@@ -1,3 +1,9 @@
+## [1.3.0](https://github.com/billionaire-devs/partner-insurers-shared-kernel/compare/v1.2.0...v1.3.0) (2025-11-13)
+
+### Features
+
+* add soft delete functionality to Model base class ([7161ae2](https://github.com/billionaire-devs/partner-insurers-shared-kernel/commit/7161ae2e54e227e1a8b608511beb56823fb4d496))
+
 ## [1.2.0](https://github.com/billionaire-devs/partner-insurers-shared-kernel/compare/v1.1.0...v1.2.0) (2025-11-13)
 
 ### Features
