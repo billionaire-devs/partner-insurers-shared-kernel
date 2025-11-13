@@ -1,3 +1,9 @@
+## [1.2.0](https://github.com/billionaire-devs/partner-insurers-shared-kernel/compare/v1.1.0...v1.2.0) (2025-11-13)
+
+### Features
+
+* add exception handlers for FailedToUpdateEntityException and NoSuchElementException ([79ffeb7](https://github.com/billionaire-devs/partner-insurers-shared-kernel/commit/79ffeb7a587451e9fa73e17b400b9282dfd1c2a2))
+
 ## [1.1.0](https://github.com/billionaire-devs/partner-insurers-shared-kernel/compare/v1.0.0...v1.1.0) (2025-11-11)
 
 ### Features
