@@ -4,26 +4,34 @@ Infrastructure de domaine partagée utilisée par les microservices des assureur
 
 ## Vue d'ensemble
 
-Le noyau partagé expose des modules cohérents à réutiliser dans vos services :
-- **Classes de base du domaine** : `AggregateRoot`, `Model` et `DomainEvent` garantissent la cohérence des agrégats et facilitent les modèles orientés événements.
-- **Objets-valeur** : `DomainEntityId`, `Email`, `Phone`, `Address`, `Url` et autres primitives standardisent les identifiants et la validation.
-- **Contrats d'application** : `Command`, `Query`, `CommandHandler` et `QueryHandler` simplifient l'implémentation de la CQRS.
-- **Résultats fonctionnels** : `Result` fournit des issues `Success`/`Failure` sans recourir aux exceptions.
-- **Contrats d'infrastructure** : `IEventPublisher` décrit comment diffuser les événements de domaine.
-- **Sérialisation** : `SerializationConfig` enregistre automatiquement les sérialiseurs Kotlinx pour les primitives du domaine.
-- **Utilitaires de présentation** : `ApiResponse`, `ApiResponseBodyAdvice` et `GlobalExceptionHandler` unifient les enveloppes JSON HTTP et les réponses d'erreur.
+Le noyau partagé expose des modules à réutiliser dans les services des assureurs partenaires :
+
+- **Classes de base du domaine** : `AggregateRoot`, `Model` et `DomainEvent` garantissent la cohérence des agrégats et
+  facilitent les modèles orientés événements.
+- **Objets-valeur** : `DomainEntityId`, `Email`, `Phone`, `Address`, `Url` et autres primitives standardisent les
+  identifiants et la validation.
+- **Contrats d'application** : `Command`, `Query`, `CommandHandler` et `QueryHandler` simplifient l'implémentation de la
+  CQRS.
+- **Résultats fonctionnels** : `Result` fournit des issues `Success`/`Failure` sans recourir aux exceptions.
+- **Contrats d'infrastructure** : `IEventPublisher` décrit comment diffuser les événements de domaine.
+- **Sérialisation** : `SerializationConfig` enregistre automatiquement les sérialiseurs Kotlinx pour les primitives du
+  domaine.
+- **Utilitaires de présentation** : `ApiResponse`, `ApiResponseBodyAdvice` et `GlobalExceptionHandler` unifient les
+  enveloppes JSON HTTP et les réponses d'erreur.
+- **Suppression logique** : La classe `Model` intègre nativement la gestion de la suppression logique avec horodatage et
+  traçabilité.
 
 ## Prérequis
 
-- **Java** : 21 (chaîne d'outils configurée dans `build.gradle.kts`)
-- **Kotlin** : 2.2.20 avec `kotlin("plugin.spring")`
-- **Spring Boot** : 4.0.0-RC1 ou version ultérieure (la bibliothèque s'appuie sur l'auto-configuration de Boot)
-- **Sérialisation** : Kotlinx Serialization 1.9.0
+- **Java** : 21 (chaîne d'outils configurée dans `build.gradle.kts`)
+- **Kotlin** : 2.2.20 avec `kotlin("plugin.spring")`
+- **Spring Boot** : 4.0.0-RC1 ou version ultérieure (la bibliothèque s'appuie sur l'auto-configuration de Boot)
+- **Sérialisation** : Kotlinx Serialization 1.9.0
 
 ## Installation
 
 1. Ajoutez le dépôt GitHub Packages (ou utilisez `mavenLocal()` pour le développement local).
-2. Déclarez la dépendance avec les coordonnées `com.bamboo.assur.partner-insurers:shared-kernel:<version>` (version actuelle : `0.1.0`).
+2. Déclarez la dépendance avec les coordonnées `com.bamboo.assur.partner-insurers:shared-kernel:<version>`.
 
 ### Gradle (Kotlin DSL)
 
@@ -82,7 +90,8 @@ dependencies {
 </dependencies>
 ```
 
-> **Authentification** : pour télécharger depuis GitHub Packages, fournissez un jeton personnel avec le scope `read:packages` via `GITHUB_TOKEN` (associé à `GITHUB_ACTOR`).
+> **Authentification** : pour télécharger depuis GitHub Packages, fournissez un jeton personnel avec le scope
+`read:packages` via `GITHUB_TOKEN` (associé à `GITHUB_ACTOR`).
 
 ## Auto-configuration Spring Boot
 
@@ -92,53 +101,105 @@ Si vous souhaitez surcharger les composants auto-configurés, déclarez des bean
 
 ## Blocs de construction du domaine
 
-- **Agrégats** : étendez `AggregateRoot` pour encapsuler les invariants du domaine et enregistrer les événements.
-- **Entités/Modèles** : étendez `Model` pour bénéficier de la gestion des horodatages et de l'égalité basée sur l'identifiant.
-- **Événements de domaine** : spécialisez `DomainEvent` pour décrire les transitions d'état et publiez-les via `IEventPublisher`.
+- **Agrégats** : étendez `AggregateRoot` pour encapsuler les invariants du domaine et enregistrer les événements.
+- **Entités/Modèles** : étendez `Model` pour bénéficier de la gestion des horodatages, de l'égalité basée sur l'
+  identifiant et de la suppression logique.
+- **Événements de domaine** : spécialisez `DomainEvent` pour décrire les transitions d'état et publiez-les via
+  `IEventPublisher`.
 
-Exemple d'agrégat et d'événement :
+### Suppression logique avec Model
+
+La classe `Model` fournit un système de suppression logique intégré qui permet de marquer les entités comme supprimées
+sans les effacer physiquement de la base de données. Cette approche préserve l'historique et facilite les audits.
+
+#### Champs de suppression logique
+
+- **`deletedAt: Instant?`** : Horodatage de la suppression (null si l'entité est active)
+- **`deletedBy: DomainEntityId?`** : Identifiant de l'utilisateur ayant effectué la suppression
+
+#### Méthodes disponibles
 
 ```kotlin
-@Serializable
-class PartnerRegisteredEvent(
-    aggregateId: DomainEntityId,
-    val partnerName: String,
-) : DomainEvent(
-    aggregateId = aggregateId,
-    aggregateType = "Partner",
-    eventType = DomainEvent.getEventTypeNameOrDefault<PartnerRegisteredEvent>("PartnerRegistered"),
-)
-
 class PartnerAggregate(
     id: DomainEntityId,
     val name: String,
 ) : AggregateRoot(id) {
 
-    fun registerPartner() {
+    fun deletePartner(userId: DomainEntityId) {
+        // Suppression logique de l'entité
+        softDelete(userId)
+        
+        // Publier un événement de suppression
         addDomainEvent(
-            PartnerRegisteredEvent(
+            PartnerDeletedEvent(
                 aggregateId = id,
-                partnerName = name,
-            ),
+                deletedBy = userId,
+                deletedAt = deletedAt!!
+            )
         )
+    }
+
+    fun restorePartner() {
+        // Restauration de l'entité supprimée logiquement
+        restore()
+        
+        addDomainEvent(
+            PartnerRestoredEvent(aggregateId = id)
+        )
+    }
+
+    fun canBeModified(): Boolean {
+        // Vérifier si l'entité est active avant modification
+        return isNotDeleted()
     }
 }
 ```
 
-Utilisez les objets-valeur pour renforcer le typage :
+#### Vérification de l'état
 
 ```kotlin
-val partnerId = DomainEntityId.random()
-val website = Url.from("https://assur.example.com")
+// Vérifier si une entité est supprimée
+if (partner.isDeleted()) {
+    throw IllegalStateException("Cannot modify deleted partner")
+}
+
+// Vérifier si une entité est active
+if (partner.isNotDeleted()) {
+    // Traitement normal de l'entité
+    partner.updateName(newName)
+}
+
+// Accès direct aux propriétés
+val deletionTimestamp = partner.deletedAt
+val whoDeleted = partner.deletedBy
+```
+
+#### Filtrage des requêtes
+
+Dans vos repositories, pensez à filtrer les entités supprimées logiquement :
+
+```kotlin
+interface PartnerRepository {
+    // Récupérer seulement les partenaires actifs
+    suspend fun findActivePartners(): List<PartnerAggregate> =
+        findAll().filter { it.isNotDeleted() }
+    
+    // Récupérer tous les partenaires (incluant les supprimés)
+    suspend fun findAllPartners(): List<PartnerAggregate>
+    
+    // Récupérer un partenaire actif par ID
+    suspend fun findActiveById(id: DomainEntityId): PartnerAggregate? =
+        findById(id)?.takeIf { it.isNotDeleted() }
+}
 ```
 
 ## Contrats de couche application
 
-- **Commandes** : implémentez l'interface marqueur `Command` pour les opérations d'écriture.
-- **Requêtes** : implémentez l'interface marqueur `Query<R>` pour représenter les lectures (voir `Query.kt`).
-- **Handlers** : implémentez `CommandHandler<C, R>` ou `QueryHandler<Q, R>` pour encapsuler les cas d'usage.
+- **Commandes** : implémentez l'interface marqueur `Command` pour les opérations d'écriture.
+- **Requêtes** : implémentez l'interface marqueur `Query<R>` pour représenter les lectures (voir `Query.kt`).
+- **Handlers** : implémentez `CommandHandler<C, R>` ou `QueryHandler<Q, R>` pour encapsuler les cas d'usage.
 
-Exemple de handler :
+Exemple de handler :
 
 ```kotlin
 data class RegisterPartnerCommand(val name: String) : Command
@@ -187,13 +248,13 @@ class OutboxEventPublisher(
 
 ## Utilitaires de présentation
 
-En intégrant le noyau partagé dans un service Spring Boot :
+En intégrant le noyau partagé dans un service Spring Boot :
 - **`ApiResponseBodyAdvice`** encapsule chaque réponse HTTP dans une enveloppe `ApiResponse` et injecte les métadonnées requête/réponse.
 - **`GlobalExceptionHandler`** traduit les exceptions (dont `DomainException`, les erreurs de validation et les problèmes de persistance) en charges d'erreur cohérentes.
 
 Il n'est pas nécessaire de déclarer ces beans manuellement. Pour exclure un contrôleur spécifique, retournez directement un `ApiResponse` ou désactivez le `ResponseBodyAdvice` via la configuration Spring.
 
-Exemple de contrôleur :
+Exemple de contrôleur :
 
 ```kotlin
 @RestController
@@ -203,23 +264,27 @@ class PartnerController(
 ) {
 
     @PostMapping
-    suspend fun register(@RequestBody payload: RegisterPartnerRequest): Result<DomainEntityId> {
-        return handler(RegisterPartnerCommand(payload.name))
+    suspend fun register(@RequestBody payload: RegisterPartnerRequest): ResponseEntity<ApiResponse<DomainEntityId>> {
+        return when (val result = handler(RegisterPartnerCommand(payload.name))) {
+            is Result.Success -> ResponseEntity.ok(ApiResponse(true, meta = buildMeta(), data = result.value))
+            is Result.Failure -> throw BusinessRuleViolationException(result.message ?: "Erreur inconnue")
+        }
     }
 }
 ```
 
-Lorsque le handler renvoie `Result.Success`, l'advice encapsule le corps dans une enveloppe de succès. Les cas d'exception sont pris en charge par `GlobalExceptionHandler`.
+L'enveloppe `ApiResponse` et `GlobalExceptionHandler` se chargent alors de rendre la réponse JSON homogène pour les
+consommateurs.
 
 ## Sérialisation
 
-`SerializationConfig` fournit un bean `Json` configuré pour :
+`SerializationConfig` fournit un bean `Json` configuré pour :
 - **Ignorer les clés inconnues** lors de la désérialisation pour conserver la compatibilité ascendante.
 - **Encoder les valeurs par défaut** afin que les champs optionnels soient présents dans le JSON.
 - **Omettre les nulls explicites** pour des charges utiles plus propres.
 - **Enregistrer des sérialiseurs contextuels** pour `DomainEntityId`, `Url` et `Instant` (`DomainEntityIdSerializer`, `UrlSerializer`, `InstantSerializer`).
 
-Injectez le bean partout où nécessaire :
+Injectez le bean partout où nécessaire :
 
 ```kotlin
 @Component
@@ -238,7 +303,7 @@ Le type scellé `Result` (défini dans `src/main/kotlin/com/bamboo/assur/partner
 - **`Result.Failure`** transporte un message d'erreur (et optionnellement une cause) destiné à l'appelant.
 - Des helpers comme `Result.of { ... }`, `map`, `flatMap`, `getOrNull`, `getOrElse` facilitent la composition fonctionnelle des traitements.
 
-### Exemple : validation métier puis persistance
+### Exemple : validation métier puis persistance
 
 ```kotlin
 fun handle(command: RegisterPartnerCommand): Result<DomainEntityId> = Result.of {
@@ -257,7 +322,7 @@ fun handle(command: RegisterPartnerCommand): Result<DomainEntityId> = Result.of 
     .onFailure { error -> logger.warn("Échec d'enregistrement", error) }
 ```
 
-### Exemple : agrégation de deux opérations dépendantes
+### Exemple : agrégation de deux opérations dépendantes
 
 ```kotlin
 suspend fun buildDashboard(partnerId: DomainEntityId): Result<PartnerDashboard> =
@@ -270,7 +335,8 @@ suspend fun buildDashboard(partnerId: DomainEntityId): Result<PartnerDashboard> 
 
 ### Propager le résultat vers la couche web
 
-En contrôleur, vous pouvez transformer `Result` en réponse HTTP cohérente avec les utilitaires d'exception du noyau partagé :
+En contrôleur, vous pouvez transformer `Result` en réponse HTTP cohérente avec les utilitaires d'exception du noyau
+partagé :
 
 ```kotlin
 @PostMapping
@@ -286,9 +352,9 @@ L'enveloppe `ApiResponse` et `GlobalExceptionHandler` se chargent alors de rendr
 
 ## Développement local et publication
 
-- **Build** : `./gradlew build`
-- **Publication dans Maven Local** : `./gradlew publishToMavenLocal`
-- **Publication sur GitHub Packages** : `./gradlew publish`
+- **Build** : `./gradlew build`
+- **Publication dans Maven Local** : `./gradlew publishToMavenLocal`
+- **Publication sur GitHub Packages** : `./gradlew publish`
 
 Des tâches d'assistance sont définies dans `publish.gradle.kts` (`buildAndPublish`, `publishToGitHubPackages`).
 
