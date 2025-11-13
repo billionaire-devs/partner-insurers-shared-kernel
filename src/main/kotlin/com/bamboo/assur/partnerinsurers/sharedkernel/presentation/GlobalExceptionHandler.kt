@@ -4,6 +4,7 @@ import com.bamboo.assur.partnerinsurers.sharedkernel.domain.DomainException
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.EntityAlreadyExistsException
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.EntityNotFoundException
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.FailedToSaveEntityException
+import com.bamboo.assur.partnerinsurers.sharedkernel.domain.FailedToUpdateEntityException
 import jakarta.servlet.http.HttpServletRequest
 import org.slf4j.LoggerFactory
 import org.springframework.beans.BeanInstantiationException
@@ -286,5 +287,35 @@ class GlobalExceptionHandler {
     ): ResponseEntity<ApiResponse<Any>> {
         val body = buildApiResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.message, request)
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body)
+    }
+
+    @ExceptionHandler(FailedToUpdateEntityException::class)
+    fun handleFailedToUpdateEntity(
+        ex: FailedToUpdateEntityException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiResponse<Any>> {
+        logger.error("Failed to update entity: ${ex.message}", ex)
+        val body = buildApiResponse(HttpStatus.INTERNAL_SERVER_ERROR, ex.message, request)
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body)
+    }
+
+    @ExceptionHandler(NoSuchElementException::class)
+    fun handleNoSuchElementException(
+        ex: NoSuchElementException,
+        request: HttpServletRequest
+    ): ResponseEntity<ApiResponse<Any>> {
+        logger.error("No such element: ${ex.message}", ex)
+        val details = mapOf(
+            "errorType" to ex.javaClass.simpleName,
+            "message" to (ex.message ?: "The requested element was not found"),
+            "suggestion" to "Verify that the requested resource exists and try again"
+        )
+        val response = buildApiResponse(
+            status = HttpStatus.NOT_FOUND,
+            message = ex.message ?: "The requested element was not found",
+            request = request,
+            details = details
+        )
+        return ResponseEntity(response, HttpStatus.NOT_FOUND)
     }
 }
