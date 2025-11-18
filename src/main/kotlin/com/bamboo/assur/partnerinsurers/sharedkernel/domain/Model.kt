@@ -37,7 +37,7 @@ abstract class Model(
      * Updates the updatedAt timestamp to the current time.
      * Should be called whenever the model state changes.
      */
-    protected fun touch() {
+    fun touch() {
         updatedAt = Clock.System.now()
     }
     
@@ -46,16 +46,17 @@ abstract class Model(
      *
      * @param userId The identifier of the user performing the delete operation.
      */
-    protected fun softDelete(userId: DomainEntityId) {
-        deletedAt = Clock.System.now()
+    fun softDelete(userId: DomainEntityId) {
+        val now = Clock.System.now()
+        updatedAt = now
+        deletedAt = now
         deletedBy = userId
-        touch()
     }
 
     /**
      * Restores a soft-deleted model by clearing deletedAt and deletedBy.
      */
-    protected fun restore() {
+    fun restore() {
         deletedAt = null
         deletedBy = null
         touch()

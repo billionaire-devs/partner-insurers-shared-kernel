@@ -1,22 +1,45 @@
 package com.bamboo.assur.partnerinsurers.sharedkernel.domain
 
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.valueObjects.DomainEntityId
-import kotlin.uuid.ExperimentalUuidApi
+import kotlin.time.Clock
+import kotlin.time.ExperimentalTime
+import kotlin.time.Instant
 
+// Note: Do not cache "now" at class-load time. Each instance should capture its own timestamps.
 
 /**
- * Represents an aggregate root in a domain-driven design context.
+ * Aggregate root represents the central entity in a domain-driven design context
+ * that serves as an entry point to a specific aggregate. It extends the `Model` class
+ * and provides additional functionality for managing domain events.
  *
- * An aggregate root is the entry point to an aggregate, which is a cluster
- * of related objects that are treated as a single unit for the purpose of
- * data changes. The aggregate root ensures the integrity and consistency
- * of the aggregate, and all interactions with the aggregate go through it.
+ * An aggregate root encapsulates domain logic, ensures consistency within the aggregate,
+ * and manages the aggregation lifecycle. It is responsible for modeling the boundary
+ * of a transaction, ensuring that changes to the aggregate occur in a controlled manner.
  *
- * @param ID The type of the identifier for the aggregate root.
- * @property id The unique identifier for this aggregate root.
+ * This class includes functionality for tracking and managing domain events, which are
+ * used to represent meaningful changes or actions occurring within the bounded context.
+ *
+ * @constructor Creates a new aggregate root instance.
+ * @param id The unique identifier for the aggregate root.
+ * @param createdAt The timestamp indicating when the aggregate was created. Defaults to the current system time.
+ * @param updatedAt The timestamp indicating when the aggregate was last updated. Defaults to `createdAt`.
+ * @param deletedAt The optional timestamp indicating when the aggregate was soft deleted. Defaults to null.
+ * @param deletedBy The identifier of the user who soft deleted the aggregate. Defaults to null.
  */
-@OptIn(ExperimentalUuidApi::class)
-abstract class AggregateRoot(id: DomainEntityId): Model(id = id) {
+@OptIn(ExperimentalTime::class)
+abstract class AggregateRoot(
+    id: DomainEntityId,
+    createdAt: Instant = Clock.System.now(),
+    updatedAt: Instant = createdAt,
+    deletedAt: Instant? = null,
+    deletedBy: DomainEntityId? = null,
+): Model(
+    id = id,
+    createdAt = createdAt,
+    updatedAt = updatedAt,
+    deletedAt = deletedAt,
+    deletedBy = deletedBy
+) {
     /**
      * Holds the list of domain events associated with this aggregate root.
      *

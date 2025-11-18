@@ -1,9 +1,8 @@
-import org.gradle.kotlin.dsl.invoke
-
 plugins {
     kotlin("jvm") version "2.2.20"
     kotlin("plugin.spring") version "2.2.20"
     kotlin("plugin.serialization") version "2.2.20"
+    id("org.jetbrains.dokka") version "1.9.20"
     `maven-publish`
     signing
 }
@@ -19,6 +18,7 @@ apply(from = "publish.gradle.kts")
 java {
     sourceCompatibility = JavaVersion.VERSION_21
     targetCompatibility = JavaVersion.VERSION_21
+    // Generate a Javadoc JAR from Dokka output so that KDoc is visible in consuming IDEs
     withJavadocJar()
     withSourcesJar()
     toolchain {
@@ -35,6 +35,8 @@ publishing {
     publications {
         create<MavenPublication>("maven") {
             from(components["java"])
+            // Ensure Dokka-generated Javadoc is attached as the javadoc artifact
+            // Gradle creates a javadocJar task via withJavadocJar(); we repoint its contents to Dokka
         }
     }
     repositories {
@@ -80,4 +82,12 @@ kotlin {
 
 tasks.withType<Test> {
     useJUnitPlatform()
+}
+
+// Configure the javadocJar task to package Dokka's Javadoc output
+// This makes Kotlin KDoc appear as JavaDoc in consumer IDEs (e.g., IntelliJ, Eclipse)
+val dokkaJavadoc by tasks.getting(org.jetbrains.dokka.gradle.DokkaTask::class)
+tasks.named<org.gradle.jvm.tasks.Jar>("javadocJar") {
+    dependsOn(dokkaJavadoc)
+    from(layout.buildDirectory.dir("dokka/javadoc"))
 }
