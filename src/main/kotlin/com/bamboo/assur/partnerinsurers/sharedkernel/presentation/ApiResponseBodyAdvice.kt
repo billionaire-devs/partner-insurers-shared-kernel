@@ -11,30 +11,35 @@ import org.springframework.http.server.ServletServerHttpRequest
 import org.springframework.http.server.ServletServerHttpResponse
 import org.springframework.web.bind.annotation.ControllerAdvice
 import org.springframework.web.servlet.mvc.method.annotation.ResponseBodyAdvice
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 /**
- * Spring MVC advice that wraps controller responses in the shared `ApiResponse` envelope.
+ * Spring MVC advice that wraps controller responses in the shared [ApiResponse] envelope.
  *
  * The advice centralizes response formatting so controllers can focus on domain data while
  * still emitting consistent metadata and error payloads.
  */
-@OptIn(ExperimentalTime::class)
 @ControllerAdvice
-class ApiResponseBodyAdvice(private val servletRequest: HttpServletRequest) : ResponseBodyAdvice<Any> {
+class ApiResponseBodyAdvice(
+    private val servletRequest: HttpServletRequest,
+    private val properties: SharedKernelPresentationProperties,
+) : ResponseBodyAdvice<Any> {
 
-    /** Removes characters that could lead to reflected XSS attacks. */
-    private fun sanitize(input: String?): String? = input?.replace(Regex("[<>\"']"), "")
-
-    /** Advertises that this advice applies to all controller return types. */
+    /**
+     * Advertises that this advice applies to controller return types when the
+     * API envelope feature is enabled.
+     */
     override fun supports(
         returnType: MethodParameter,
         converterType: Class<out HttpMessageConverter<*>>,
-    ): Boolean = true
+    ): Boolean = properties.apiResponse.enabled
 
     /**
      * Wraps controller responses into a standardized envelope and enriches them with metadata.
+     *
+     * Non-JSON responses (e.g. file downloads, HTML) are passed through untouched to avoid
+     * corrupting binary or specialized payloads.
      */
     override fun beforeBodyWrite(
         body: Any?,
@@ -44,6 +49,16 @@ class ApiResponseBodyAdvice(private val servletRequest: HttpServletRequest) : Re
         request: ServerHttpRequest,
         response: ServerHttpResponse,
     ): Any? {
+        // If disabled, short-circuit quickly.
+        if (!properties.apiResponse.enabled) {
+            return body
+        }
+
+        // Only wrap JSON responses to avoid corrupting non-JSON payloads.
+        if (!isJsonContentType(selectedContentType)) {
+            return body
+        }
+
         // Don't wrap if already an ApiResponse
         if (body is ApiResponse<*>) return body
 
@@ -53,19 +68,32 @@ class ApiResponseBodyAdvice(private val servletRequest: HttpServletRequest) : Re
 
         val statusCode = servletResponse?.status?.let { HttpStatus.resolve(it) } ?: HttpStatus.OK
 
+        val now: Instant = Clock.System.now()
+        val requestStart = servletRequest.getAttribute(SharedKernelRequestTimingFilter.REQUEST_START_ATTRIBUTE) as? Instant
+        val processingTimeMs = requestStart?.let { start -> (now - start).inWholeMilliseconds }
+
         val reqMeta = RequestMetadata(
-            method = sanitize(servletRequest.method) ?: servletRequest.method,
-            path = sanitize(servletRequest.requestURI) ?: servletRequest.requestURI,
-            query = sanitize(servletRequest.queryString)
+            method = servletRequest.method,
+            path = servletRequest.requestURI,
+            query = servletRequest.queryString,
+            correlationId = servletRequest.getHeader("X-Correlation-Id")
+                ?: servletRequest.getHeader("X-Request-Id"),
         )
 
         val respMeta = ResponseMetadata(
             status = statusCode.value(),
+            statusCode = statusCode.value(),
             reason = statusCode.reasonPhrase,
-            timestamp = Clock.System.now()
+            timestamp = now,
+            processingTimeMs = processingTimeMs,
         )
 
-        val meta = Meta(request = reqMeta, response = respMeta)
+        val meta = Meta(
+            request = reqMeta,
+            response = respMeta,
+            version = properties.metaDefaults.version,
+            environment = properties.metaDefaults.environment,
+        )
 
         // For non-2xx statuses, treat the controller body as an error payload
         if (!statusCode.is2xxSuccessful) {
@@ -75,7 +103,7 @@ class ApiResponseBodyAdvice(private val servletRequest: HttpServletRequest) : Re
                 success = false,
                 meta = meta,
                 data = null,
-                error = errorBody
+                error = errorBody,
             )
         }
 
@@ -83,8 +111,22 @@ class ApiResponseBodyAdvice(private val servletRequest: HttpServletRequest) : Re
             success = true,
             meta = meta,
             data = body,
-            error = null
+            error = null,
         )
+    }
+
+    private fun isJsonContentType(contentType: MediaType?): Boolean {
+        if (contentType == null || contentType == MediaType.ALL) {
+            return false
+        }
+
+        if (contentType.isCompatibleWith(MediaType.APPLICATION_JSON)) {
+            return true
+        }
+
+        // Support vendor-specific types such as application/vnd.my+json
+        return contentType.type.equals("application", ignoreCase = true) &&
+            contentType.subtype.lowercase().endsWith("+json")
     }
 
     private fun extractErrorBody(body: Any?): ErrorBody {
@@ -102,9 +144,6 @@ class ApiResponseBodyAdvice(private val servletRequest: HttpServletRequest) : Re
             else -> body.toString()
         }
 
-        val message = sanitize(rawMessage)
-
-        val errorBody = ErrorBody(message = message, details = null)
-        return errorBody
+        return ErrorBody(message = rawMessage, details = null)
     }
 }

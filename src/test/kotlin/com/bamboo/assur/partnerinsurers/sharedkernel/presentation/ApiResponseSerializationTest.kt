@@ -1,15 +1,13 @@
 package com.bamboo.assur.partnerinsurers.sharedkernel.presentation
 
 import com.bamboo.assur.partnerinsurers.sharedkernel.infrastructure.serialization.SerializationConfig
+import kotlinx.datetime.Instant
 import kotlinx.serialization.builtins.MapSerializer
 import kotlinx.serialization.builtins.serializer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNull
-import kotlin.time.ExperimentalTime
-import kotlin.time.Instant
 
-@OptIn(ExperimentalTime::class)
 class ApiResponseSerializationTest {
 
     private val json = SerializationConfig().kotlinxJson()
@@ -57,7 +55,7 @@ class ApiResponseSerializationTest {
             data = null,
             error = ErrorBody(
                 message = "Validation failed",
-                details = "{\"name\":\"must not be blank\"}"
+                details = mapOf("name" to "must not be blank")
             )
         )
 

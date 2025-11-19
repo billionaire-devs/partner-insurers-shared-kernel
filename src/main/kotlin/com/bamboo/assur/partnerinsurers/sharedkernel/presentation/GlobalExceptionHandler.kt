@@ -5,7 +5,10 @@ import com.bamboo.assur.partnerinsurers.sharedkernel.domain.EntityAlreadyExistsE
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.EntityNotFoundException
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.FailedToSaveEntityException
 import com.bamboo.assur.partnerinsurers.sharedkernel.domain.FailedToUpdateEntityException
+import com.bamboo.assur.partnerinsurers.sharedkernel.domain.ValidationError
+import com.bamboo.assur.partnerinsurers.sharedkernel.domain.ValidationException
 import jakarta.servlet.http.HttpServletRequest
+import jakarta.validation.ConstraintViolationException
 import org.slf4j.LoggerFactory
 import org.springframework.beans.BeanInstantiationException
 import org.springframework.dao.DataIntegrityViolationException
@@ -15,63 +18,101 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.http.converter.HttpMessageNotReadableException
 import org.springframework.web.bind.MethodArgumentNotValidException
+import org.springframework.web.bind.MissingServletRequestParameterException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
-import kotlin.time.Clock
-import kotlin.time.ExperimentalTime
+import kotlinx.datetime.Clock
+import kotlinx.datetime.Instant
 
 /**
  * Consolidated exception handling for REST controllers, mapping common failures to
- * the shared `ApiResponse` envelope while logging actionable details.
+ * the shared [ApiResponse] envelope while logging actionable details.
  */
-@OptIn(ExperimentalTime::class)
 @Suppress("TooManyFunctions")
 @RestControllerAdvice
-class GlobalExceptionHandler {
+class GlobalExceptionHandler(
+    private val presentationProperties: SharedKernelPresentationProperties,
+) {
 
     private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
 
-    /** HTML-escapes user-supplied strings to avoid reflected XSS when echoing input. */
-    private fun escapeHtml(input: String?): String? = input
-        ?.replace("&", "&amp;")
-        ?.replace("<", "&lt;")
-        ?.replace(">", "&gt;")
-        ?.replace("\"", "&quot;")
-        ?.replace("'", "&#x27;")
+    /**
+     * Extracts a correlation identifier from well-known headers when present.
+     */
+    private fun extractCorrelationId(request: HttpServletRequest): String? =
+        request.getHeader("X-Correlation-Id")
+            ?: request.getHeader("X-Request-Id")
 
-    /** Builds a standardized `ApiResponse` error payload with metadata. */
+    /**
+     * Builds a standardized [ApiResponse] error payload with metadata.
+     *
+     * @param status HTTP status to expose in the envelope.
+     * @param message Human-readable error message.
+     * @param request Current HTTP servlet request.
+     * @param code Optional machine-readable error code.
+     * @param details Optional key/value details that will be propagated as-is
+     *   into [ErrorBody.details].
+     */
     private fun buildApiResponse(
         status: HttpStatus,
         message: String?,
         request: HttpServletRequest,
-        details: Map<String, Any>? = null
+        code: String? = null,
+        details: Map<String, String?>? = null,
     ): ApiResponse<Any> {
+        val now: Instant = Clock.System.now()
+
+        val requestStart = request.getAttribute(SharedKernelRequestTimingFilter.REQUEST_START_ATTRIBUTE) as? Instant
+        val processingTimeMs = requestStart?.let { start -> (now - start).inWholeMilliseconds }
+
         val reqMeta = RequestMetadata(
-            method = escapeHtml(request.method) ?: request.method,
-            path = escapeHtml(request.requestURI) ?: "UNKNOWN",
-            query = escapeHtml(request.queryString)
+            method = request.method,
+            path = request.requestURI,
+            query = request.queryString,
+            correlationId = extractCorrelationId(request),
         )
 
         val respMeta = ResponseMetadata(
             status = status.value(),
+            statusCode = status.value(),
             reason = status.reasonPhrase,
-            timestamp = Clock.System.now()
+            timestamp = now,
+            processingTimeMs = processingTimeMs,
         )
 
         val errorBody = ErrorBody(
-            message = escapeHtml(message),
-            details = details?.mapValues { (_, v) -> escapeHtml(v.toString()) }.toString()
+            message = message,
+            code = code,
+            details = details,
         )
 
-        val meta = Meta(request = reqMeta, response = respMeta)
+        val meta = Meta(
+            request = reqMeta,
+            response = respMeta,
+            version = presentationProperties.metaDefaults.version,
+            environment = presentationProperties.metaDefaults.environment,
+        )
 
         return ApiResponse(
             success = false,
             meta = meta,
             data = null,
-            error = errorBody
+            error = errorBody,
         )
     }
+
+    /**
+     * Flattens a list of [ValidationError] into a map representation for [ErrorBody.details].
+     */
+    private fun buildValidationDetails(errors: List<ValidationError>): Map<String, String?> =
+        buildMap {
+            errors.forEachIndexed { index, error ->
+                val key = error.field?.takeIf { it.isNotBlank() }?.let { "field.$it" } ?: "error.$index"
+                put(key, error.message)
+            }
+            put("totalErrors", errors.size.toString())
+        }
+
 
     @ExceptionHandler(IllegalArgumentException::class)
     fun handleIllegalArgumentException(
@@ -85,9 +126,9 @@ class GlobalExceptionHandler {
         )
         val response = buildApiResponse(
             status = HttpStatus.BAD_REQUEST,
-            message = "Invalid request: ${escapeHtml(ex.message) ?: "Invalid argument provided"}",
+            message = "Invalid request: ${ex.message ?: "Invalid argument provided"}",
             request = request,
-            details = details
+            details = details,
         )
         return ResponseEntity(response, HttpStatus.BAD_REQUEST)
     }
@@ -103,7 +144,7 @@ class GlobalExceptionHandler {
                 val message = rootCause.message ?: "Invalid request format"
                 val fieldName = """\b(\w+)(?=\s*\()""".toRegex()
                     .find(message)?.groupValues?.getOrNull(1)
-                
+
                 if (fieldName != null) {
                     "Invalid request format" to mapOf(
                         "field" to fieldName,
@@ -117,13 +158,13 @@ class GlobalExceptionHandler {
                     )
                 }
             }
-            else -> 
+            else ->
                 "Invalid JSON body format" to mapOf(
                     "error" to "Request body is not a valid JSON",
                     "suggestion" to "Ensure the request body is a valid JSON document"
                 )
         }
-        
+
         logger.error("Failed to parse request: ${ex.message}", ex)
         val response = buildApiResponse(
             status = HttpStatus.BAD_REQUEST,
@@ -133,37 +174,96 @@ class GlobalExceptionHandler {
         )
         return ResponseEntity(response, HttpStatus.BAD_REQUEST)
     }
-    
+
     @ExceptionHandler(MethodArgumentNotValidException::class)
     fun handleMethodArgumentNotValid(
         ex: MethodArgumentNotValidException,
-        request: HttpServletRequest
+        request: HttpServletRequest,
     ): ResponseEntity<ApiResponse<Any>> {
-        val fieldErrors = ex.bindingResult.fieldErrors.associate { error ->
-            error.field to escapeHtml(error.defaultMessage ?: "Validation failed")
+        val errors = buildList<ValidationError> {
+            ex.bindingResult.fieldErrors.forEach { error ->
+                add(
+                    ValidationError(
+                        field = error.field,
+                        message = error.defaultMessage ?: "Validation failed",
+                    ),
+                )
+            }
+            ex.bindingResult.globalErrors.forEach { error ->
+                add(
+                    ValidationError(
+                        field = error.objectName,
+                        message = error.defaultMessage ?: "Validation failed",
+                    ),
+                )
+            }
         }
-        
-        val globalErrors = ex.bindingResult.globalErrors.associate { error ->
-            error.objectName to escapeHtml(error.defaultMessage ?: "Validation failed")
-        }
-        
-        val details = mapOf(
-            "fieldErrors" to fieldErrors,
-            "globalErrors" to globalErrors,
-            "totalErrors" to (fieldErrors.size + globalErrors.size)
-        )
-        
-        val errorMessage = "Validation failed. ${fieldErrors.size} field(s) have errors."
-        
+
+        val details = buildValidationDetails(errors)
+        val errorMessage = "Validation failed. ${errors.size} error(s)."
+
         logger.error("Validation failed: ${ex.message}")
         val response = buildApiResponse(
             status = HttpStatus.BAD_REQUEST,
             message = errorMessage,
             request = request,
-            details = details
+            code = "VALIDATION_FAILED",
+            details = details,
         )
         return ResponseEntity(response, HttpStatus.BAD_REQUEST)
     }
+
+    @ExceptionHandler(ConstraintViolationException::class)
+    fun handleConstraintViolation(
+        ex: ConstraintViolationException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiResponse<Any>> {
+        val errors = ex.constraintViolations.map { violation ->
+            val path = violation.propertyPath?.toString()?.takeIf { it.isNotBlank() }
+            ValidationError(
+                field = path,
+                message = violation.message,
+            )
+        }
+
+        val details = buildValidationDetails(errors)
+        val errorMessage = "Validation failed. ${errors.size} constraint(s) violated."
+
+        logger.error("Constraint violation: ${ex.message}", ex)
+        val response = buildApiResponse(
+            status = HttpStatus.BAD_REQUEST,
+            message = errorMessage,
+            request = request,
+            code = "CONSTRAINT_VIOLATION",
+            details = details,
+        )
+        return ResponseEntity(response, HttpStatus.BAD_REQUEST)
+    }
+
+    @ExceptionHandler(MissingServletRequestParameterException::class)
+    fun handleMissingServletRequestParameter(
+        ex: MissingServletRequestParameterException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiResponse<Any>> {
+        val parameterName = ex.parameterName
+        val parameterType = ex.parameterType
+
+        val details = mapOf(
+            "parameterName" to parameterName,
+            "parameterType" to parameterType,
+            "message" to "Required request parameter '$parameterName' of type '$parameterType' is missing",
+        )
+
+        val response = buildApiResponse(
+            status = HttpStatus.BAD_REQUEST,
+            message = "Missing required request parameter '$parameterName'",
+            request = request,
+            code = "MISSING_REQUEST_PARAMETER",
+            details = details,
+        )
+        return ResponseEntity(response, HttpStatus.BAD_REQUEST)
+    }
+
 
     @ExceptionHandler(EntityNotFoundException::class)
     fun handleEntityNotFoundException(
@@ -232,6 +332,22 @@ class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body)
     }
 
+    @ExceptionHandler(ValidationException::class)
+    fun handleDomainValidation(
+        ex: ValidationException,
+        request: HttpServletRequest,
+    ): ResponseEntity<ApiResponse<Any>> {
+        val details = buildValidationDetails(ex.errors)
+        val body = buildApiResponse(
+            status = HttpStatus.BAD_REQUEST,
+            message = ex.message,
+            request = request,
+            code = "VALIDATION_FAILED",
+            details = details,
+        )
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(body)
+    }
+
     @ExceptionHandler(DomainException::class)
     fun handleDomain(ex: DomainException, request: HttpServletRequest): ResponseEntity<ApiResponse<Any>> {
         val body = buildApiResponse(HttpStatus.BAD_REQUEST, ex.message, request)
@@ -260,22 +376,22 @@ class GlobalExceptionHandler {
 
     @ExceptionHandler(Throwable::class)
     fun handleUnexpected(ex: Throwable, request: HttpServletRequest): ResponseEntity<ApiResponse<Any>> {
-        val safePath = escapeHtml(request.requestURI) ?: request.requestURI
-        logger.error("Unexpected error while handling request $safePath", ex)
-        
+        val path = request.requestURI
+        logger.error("Unexpected error while handling request $path", ex)
+
         val details = mapOf(
             "errorType" to ex.javaClass.simpleName,
             "message" to (ex.message ?: "No error message available"),
-            "path" to safePath,
+            "path" to path,
             "timestamp" to Clock.System.now().toString(),
-            "suggestion" to "Please contact support if the problem persists"
+            "suggestion" to "Please contact support if the problem persists",
         )
-        
+
         val body = buildApiResponse(
             status = HttpStatus.INTERNAL_SERVER_ERROR,
             message = "An unexpected error occurred while processing your request",
             request = request,
-            details = details
+            details = details,
         )
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(body)
     }

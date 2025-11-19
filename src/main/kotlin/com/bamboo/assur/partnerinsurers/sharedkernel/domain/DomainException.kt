@@ -59,3 +59,13 @@ class FailedToUpdateEntityException(
     entityType: String,
     entityId: Any
 ): DomainException("Failed to update $entityType with ID '$entityId'")
+
+/**
+ * Exception thrown when one or more validation errors occur.
+ */
+class ValidationException(
+    val errors: List<ValidationError>,
+    message: String = "Validation failed",
+    cause: Throwable? = null,
+) : DomainException(message, cause)
+

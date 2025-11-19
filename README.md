@@ -25,8 +25,8 @@ Le noyau partagé expose des modules à réutiliser dans les services des assure
 
 - **Java** : 21 (chaîne d'outils configurée dans `build.gradle.kts`)
 - **Kotlin** : 2.2.20 avec `kotlin("plugin.spring")`
-- **Spring Boot** : 4.0.0-RC1 ou version ultérieure (la bibliothèque s'appuie sur l'auto-configuration de Boot)
-- **Sérialisation** : Kotlinx Serialization 1.9.0
+- **Spring Boot** : 4.0.0-RC2 ou version ultérieure (la bibliothèque s'appuie sur l'auto-configuration de Boot)
+- **Sérialisation** : Kotlinx Serialization 1.7.3
 
 ## Installation
 
@@ -48,7 +48,7 @@ repositories {
 }
 
 dependencies {
-    implementation("com.bamboo.assur.partner-insurers:shared-kernel:0.1.0")
+    implementation("com.bamboo.assur.partner-insurers:shared-kernel:1.3.0")
 }
 ```
 
@@ -67,7 +67,7 @@ repositories {
 }
 
 dependencies {
-    implementation 'com.bamboo.assur.partner-insurers:shared-kernel:0.1.0'
+    implementation 'com.bamboo.assur.partner-insurers:shared-kernel:1.3.0'
 }
 ```
 
@@ -85,7 +85,7 @@ dependencies {
   <dependency>
     <groupId>com.bamboo.assur.partner-insurers</groupId>
     <artifactId>shared-kernel</artifactId>
-    <version>0.1.0</version>
+    <version>1.3.0</version>
   </dependency>
 </dependencies>
 ```
@@ -254,6 +254,15 @@ En intégrant le noyau partagé dans un service Spring Boot :
 
 Il n'est pas nécessaire de déclarer ces beans manuellement. Pour exclure un contrôleur spécifique, retournez directement un `ApiResponse` ou désactivez le `ResponseBodyAdvice` via la configuration Spring.
 
+L'enveloppe automatique peut également être désactivée globalement via la propriété Spring Boot suivante (activée par défaut) :
+
+```yaml
+sharedkernel:
+  presentation:
+    api-response:
+      enabled: false
+```
+
 Exemple de contrôleur :
 
 ```kotlin
@@ -295,9 +304,12 @@ class JsonExample(private val json: Json) {
 
 Pour personnaliser le comportement, définissez votre propre bean `Json`. Spring privilégiera votre définition grâce à l'annotation `@ConditionalOnMissingBean` placée sur la configuration de la bibliothèque.
 
-## Motif Result
+## Motif Result (déprécié)
 
 Le type scellé `Result` (défini dans `src/main/kotlin/com/bamboo/assur/partnerinsurers/sharedkernel/domain/Result.kt`) permet d'exprimer explicitement le succès ou l'échec d'une opération métier sans recourir systématiquement aux exceptions.
+
+> **Remarque :** ce type est désormais **déprécié** dans la bibliothèque et est conservé uniquement pour compatibilité ascendante.
+> Pour les nouveaux développements, privilégiez soit le type standard `kotlin.Result`, soit une approche orientée exceptions combinée avec `GlobalExceptionHandler`.
 
 - **`Result.Success<T>`** encapsule la valeur attendue lorsque l'opération se déroule correctement.
 - **`Result.Failure`** transporte un message d'erreur (et optionnellement une cause) destiné à l'appelant.

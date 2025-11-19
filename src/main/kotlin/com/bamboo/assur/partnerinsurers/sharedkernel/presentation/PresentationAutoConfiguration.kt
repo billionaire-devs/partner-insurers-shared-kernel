@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest
 import org.springframework.boot.autoconfigure.AutoConfiguration
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
+import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean
 
 /**
@@ -14,14 +15,24 @@ import org.springframework.context.annotation.Bean
  */
 @AutoConfiguration
 @ConditionalOnClass(HttpServletRequest::class)
+@EnableConfigurationProperties(SharedKernelPresentationProperties::class)
 class PresentationAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    fun apiResponseBodyAdvice(servletRequest: HttpServletRequest): ApiResponseBodyAdvice =
-        ApiResponseBodyAdvice(servletRequest)
+    fun apiResponseBodyAdvice(
+        servletRequest: HttpServletRequest,
+        sharedKernelPresentationProperties: SharedKernelPresentationProperties,
+    ): ApiResponseBodyAdvice =
+        ApiResponseBodyAdvice(servletRequest, sharedKernelPresentationProperties)
 
     @Bean
     @ConditionalOnMissingBean
-    fun globalExceptionHandler(): GlobalExceptionHandler = GlobalExceptionHandler()
+    fun globalExceptionHandler(
+        sharedKernelPresentationProperties: SharedKernelPresentationProperties,
+    ): GlobalExceptionHandler = GlobalExceptionHandler(sharedKernelPresentationProperties)
+
+    @Bean
+    @ConditionalOnMissingBean
+    fun sharedKernelRequestTimingFilter(): SharedKernelRequestTimingFilter = SharedKernelRequestTimingFilter()
 }

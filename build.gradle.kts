@@ -42,7 +42,9 @@ publishing {
     repositories {
         maven {
             name = "GitHubPackages"
-            url = uri("https://maven.pkg.github.com/${System.getenv("GITHUB_REPOSITORY")}")
+            val repoSlug = System.getenv("GITHUB_REPOSITORY")
+                ?: "${project.property("repository.owner")}/${project.property("repository.name")}"
+            url = uri("https://maven.pkg.github.com/$repoSlug")
             credentials {
                 username = System.getenv("GITHUB_ACTOR") ?: project.findProperty("gpr.user") as String?
                 password = System.getenv("GITHUB_TOKEN") ?: project.findProperty("gpr.token") as String?
@@ -61,6 +63,8 @@ dependencies {
     compileOnly("org.springframework.boot:spring-boot-starter-webflux:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
     compileOnly("org.springframework.boot:spring-boot-starter-data-r2dbc:$springBootVersion")
+    // Jakarta Bean Validation API (for ConstraintViolationException, etc.)
+    compileOnly("jakarta.validation:jakarta.validation-api")
 
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
     implementation("org.jetbrains.kotlin:kotlin-reflect:2.2.20")
@@ -71,6 +75,7 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-web:$springBootVersion")
     testImplementation("org.springframework.data:spring-data-commons")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("jakarta.validation:jakarta.validation-api")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

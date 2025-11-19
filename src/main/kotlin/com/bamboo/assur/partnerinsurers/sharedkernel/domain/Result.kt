@@ -2,12 +2,19 @@ package com.bamboo.assur.partnerinsurers.sharedkernel.domain
 
 /**
  * Represents the result of an operation that can either succeed or fail.
- * 
+ *
  * This pattern helps avoid throwing exceptions for expected failures
  * and makes error handling more explicit and functional.
- * 
+ *
+ * Deprecated in favor of Kotlin's built-in [kotlin.Result] type and
+ * idiomatic exception-based error handling.
+ *
  * @param T The type of the success value
  */
+@Deprecated(
+    message = "This class will be removed in a future version.",
+    level = DeprecationLevel.WARNING,
+)
 sealed class Result<out T> {
     
     /**
